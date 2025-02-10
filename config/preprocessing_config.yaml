@@ -26,4 +26,4 @@ parameters:
   add_time_features: true
   normalize: true
 
-data_path: "data/raw/power_consumption.csv" 
+data_path: "data/raw/power_consumption.csv"

@@ -24,7 +24,7 @@ class PowerDataPreprocessor:
 
     def __init__(self, config: Optional[PreprocessingConfig] = None) -> None:
         """Initialize the preprocessor.
-        
+
         Args:
             config: Optional configuration object. If None, uses default values.
         """
@@ -150,10 +150,7 @@ class PowerDataPreprocessor:
             raise ValueError("No processed data available. Run preprocess() first.")
 
         target_cols = target_zones or self.config.target_zones
-        feature_cols = (
-            self.config.numerical_features + 
-            self.config.time_features
-        )
+        feature_cols = self.config.numerical_features + self.config.time_features
 
         X = self.processed_data[feature_cols]
         y = self.processed_data[target_cols]
@@ -162,11 +159,11 @@ class PowerDataPreprocessor:
 
     def save_to_catalog(self, train_set: DataFrame, test_set: DataFrame) -> None:
         """Save the train and test sets into Databricks tables with timestamps.
-        
+
         Args:
             train_set: Training dataset to be saved
             test_set: Test dataset to be saved
-            
+
         Raises:
             ValueError: If catalog_name or schema_name is not configured
         """
@@ -191,9 +188,9 @@ class PowerDataPreprocessor:
 
     def enable_change_data_feed(self) -> None:
         """Enable Change Data Feed (CDF) for train and test set tables.
-        
+
         This allows tracking of data changes in the Delta tables.
-        
+
         Raises:
             ValueError: If catalog_name or schema_name is not configured
         """
