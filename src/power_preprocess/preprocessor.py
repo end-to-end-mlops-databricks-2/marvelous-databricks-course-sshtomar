@@ -4,23 +4,34 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import current_timestamp, to_utc_timestamp
+
+from power_preprocess.config import PreprocessingConfig
 
 
 class PowerDataPreprocessor:
     """Preprocessor for the Tetouan City Power Consumption dataset.
 
     This class handles the preprocessing steps for the power consumption dataset,
-    including loading, cleaning, feature engineering, and normalization.
+    including loading, cleaning, feature engineering, normalization, and Databricks integration.
 
     Attributes:
         raw_data: DataFrame containing the raw loaded data
         processed_data: DataFrame containing the processed data
+        spark: SparkSession for Databricks operations
     """
 
-    def __init__(self) -> None:
-        """Initialize the preprocessor."""
+    def __init__(self, config: Optional[PreprocessingConfig] = None) -> None:
+        """Initialize the preprocessor.
+        
+        Args:
+            config: Optional configuration object. If None, uses default values.
+        """
+        self.config = config or PreprocessingConfig()
         self.raw_data: Optional[DataFrame] = None
         self.processed_data: Optional[DataFrame] = None
+        self.spark = SparkSession.builder.getOrCreate()
 
     def load_data(self, file_path: Union[str, Path]) -> DataFrame:
         """Load the power consumption dataset from a CSV file.
@@ -37,15 +48,8 @@ class PowerDataPreprocessor:
         self.raw_data = pd.read_csv(file_path)
         return self.raw_data
 
-    def preprocess(
-        self, handle_missing: bool = True, add_time_features: bool = True, normalize: bool = True
-    ) -> DataFrame:
-        """Execute the preprocessing pipeline on the loaded data.
-
-        Args:
-            handle_missing: Whether to handle missing values
-            add_time_features: Whether to add time-based features
-            normalize: Whether to normalize numerical features
+    def preprocess(self) -> DataFrame:
+        """Execute the preprocessing pipeline on the loaded data using configuration settings.
 
         Returns:
             DataFrame containing the processed data
@@ -61,13 +65,13 @@ class PowerDataPreprocessor:
         # Convert DateTime column to datetime type
         data["DateTime"] = pd.to_datetime(data["DateTime"])
 
-        if handle_missing:
+        if self.config.parameters["handle_missing"]:
             data = self._handle_missing_values(data)
 
-        if add_time_features:
+        if self.config.parameters["add_time_features"]:
             data = self._add_time_features(data)
 
-        if normalize:
+        if self.config.parameters["normalize"]:
             data = self._normalize_features(data)
 
         self.processed_data = data
@@ -116,17 +120,8 @@ class PowerDataPreprocessor:
         Returns:
             DataFrame with normalized numerical features
         """
-        # Identify columns to normalize (exclude DateTime and engineered categorical features)
-        cols_to_normalize = [
-            "Temperature",
-            "Humidity",
-            "Wind Speed",
-            "general diffuse flows",
-            "diffuse flows",
-            "Zone 1 Power Consumption",
-            "Zone 2  Power Consumption",
-            "Zone 3  Power Consumption",
-        ]
+        # Normalize numerical features
+        cols_to_normalize = self.config.numerical_features + self.config.target_zones
 
         for col in cols_to_normalize:
             if col in data.columns:
@@ -136,12 +131,12 @@ class PowerDataPreprocessor:
 
         return data
 
-    def get_feature_target_split(self, target_zones: Optional[List[int]] = None) -> Tuple[DataFrame, DataFrame]:
+    def get_feature_target_split(self, target_zones: Optional[List[str]] = None) -> Tuple[DataFrame, DataFrame]:
         """Split the processed data into features and target variables.
 
         Args:
-            target_zones: List of zone numbers (1-3) to include as targets.
-                        If None, includes all zones.
+            target_zones: List of zone names to include as targets.
+                        If None, uses zones from config.
 
         Returns:
             Tuple containing:
@@ -154,13 +149,63 @@ class PowerDataPreprocessor:
         if self.processed_data is None:
             raise ValueError("No processed data available. Run preprocess() first.")
 
-        if target_zones is None:
-            target_zones = [1, 2, 3]
-
-        target_cols = [f"Zone {z} Power Consumption" for z in target_zones]
-        feature_cols = [col for col in self.processed_data.columns if col not in target_cols and col != "DateTime"]
+        target_cols = target_zones or self.config.target_zones
+        feature_cols = (
+            self.config.numerical_features + 
+            self.config.time_features
+        )
 
         X = self.processed_data[feature_cols]
         y = self.processed_data[target_cols]
 
         return X, y
+
+    def save_to_catalog(self, train_set: DataFrame, test_set: DataFrame) -> None:
+        """Save the train and test sets into Databricks tables with timestamps.
+        
+        Args:
+            train_set: Training dataset to be saved
+            test_set: Test dataset to be saved
+            
+        Raises:
+            ValueError: If catalog_name or schema_name is not configured
+        """
+        if not (self.config.catalog_name and self.config.schema_name):
+            raise ValueError("Catalog and schema names must be configured")
+
+        train_set_with_timestamp = self.spark.createDataFrame(train_set).withColumn(
+            "update_timestamp_utc", to_utc_timestamp(current_timestamp(), "UTC")
+        )
+
+        test_set_with_timestamp = self.spark.createDataFrame(test_set).withColumn(
+            "update_timestamp_utc", to_utc_timestamp(current_timestamp(), "UTC")
+        )
+
+        train_set_with_timestamp.write.mode("append").saveAsTable(
+            f"{self.config.catalog_name}.{self.config.schema_name}.train_set"
+        )
+
+        test_set_with_timestamp.write.mode("append").saveAsTable(
+            f"{self.config.catalog_name}.{self.config.schema_name}.test_set"
+        )
+
+    def enable_change_data_feed(self) -> None:
+        """Enable Change Data Feed (CDF) for train and test set tables.
+        
+        This allows tracking of data changes in the Delta tables.
+        
+        Raises:
+            ValueError: If catalog_name or schema_name is not configured
+        """
+        if not (self.config.catalog_name and self.config.schema_name):
+            raise ValueError("Catalog and schema names must be configured")
+
+        self.spark.sql(
+            f"ALTER TABLE {self.config.catalog_name}.{self.config.schema_name}.train_set "
+            "SET TBLPROPERTIES (delta.enableChangeDataFeed = true);"
+        )
+
+        self.spark.sql(
+            f"ALTER TABLE {self.config.catalog_name}.{self.config.schema_name}.test_set "
+            "SET TBLPROPERTIES (delta.enableChangeDataFeed = true);"
+        )
