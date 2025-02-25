@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 from typing import Dict, List
 
 import yaml
@@ -13,12 +15,16 @@ class PreprocessingConfig:
         numerical_features: List of numerical feature names
         target_zones: List of target zone column names
         time_features: List of time-based feature names
+        catalog_name: Name of the Unity Catalog
+        schema_name: Name of the schema in Unity Catalog
     """
 
     parameters: Dict[str, bool] = None
     numerical_features: List[str] = None
     target_zones: List[str] = None
     time_features: List[str] = None
+    catalog_name: Optional[str] = None
+    schema_name: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Set default values if none provided."""
@@ -36,6 +42,8 @@ class PreprocessingConfig:
             "Zone 3  Power Consumption",
         ]
         self.time_features = self.time_features or ["Hour", "DayOfWeek", "Month", "IsWeekend", "Hour_sin", "Hour_cos"]
+        self.catalog_name = self.catalog_name
+        self.schema_name = self.schema_name
 
     @classmethod
     def from_yaml(cls, config_path: str) -> "PreprocessingConfig":

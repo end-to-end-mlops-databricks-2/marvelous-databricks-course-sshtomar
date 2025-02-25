@@ -157,12 +157,15 @@ class PowerDataPreprocessor:
 
         return X, y
 
-    def save_to_catalog(self, train_set: DataFrame, test_set: DataFrame) -> None:
-        """Save the train and test sets into Databricks tables with timestamps.
+    def save_to_catalog(self, train_set: DataFrame, val_set: DataFrame, test_set: DataFrame, 
+                   version: str = "v1") -> None:
+        """Save the train, validation and test sets into Databricks tables with timestamps.
 
         Args:
             train_set: Training dataset to be saved
+            val_set: Validation dataset to be saved
             test_set: Test dataset to be saved
+            version: Version string to append to table names for versioning
 
         Raises:
             ValueError: If catalog_name or schema_name is not configured
@@ -170,21 +173,25 @@ class PowerDataPreprocessor:
         if not (self.config.catalog_name and self.config.schema_name):
             raise ValueError("Catalog and schema names must be configured")
 
-        train_set_with_timestamp = self.spark.createDataFrame(train_set).withColumn(
-            "update_timestamp_utc", to_utc_timestamp(current_timestamp(), "UTC")
-        )
-
-        test_set_with_timestamp = self.spark.createDataFrame(test_set).withColumn(
-            "update_timestamp_utc", to_utc_timestamp(current_timestamp(), "UTC")
-        )
-
-        train_set_with_timestamp.write.mode("append").saveAsTable(
-            f"{self.config.catalog_name}.{self.config.schema_name}.train_set"
-        )
-
-        test_set_with_timestamp.write.mode("append").saveAsTable(
-            f"{self.config.catalog_name}.{self.config.schema_name}.test_set"
-        )
+        # Add timestamp columns to each dataset
+        for name, dataset in [("train", train_set), ("validation", val_set), ("test", test_set)]:
+            dataset_with_timestamp = self.spark.createDataFrame(dataset).withColumn(
+                "update_timestamp_utc", to_utc_timestamp(current_timestamp(), "UTC")
+            )
+            
+            table_name = f"{self.config.catalog_name}.{self.config.schema_name}.{name}_set_{version}"
+            
+            # Write to Delta table
+            dataset_with_timestamp.write.mode("overwrite").saveAsTable(table_name)
+            
+            # Enable CDF if specified in config
+            if self.config.enable_cdf:
+                self.spark.sql(
+                    f"ALTER TABLE {table_name} "
+                    "SET TBLPROPERTIES (delta.enableChangeDataFeed = true);"
+                )
+                
+        return
 
     def enable_change_data_feed(self) -> None:
         """Enable Change Data Feed (CDF) for train and test set tables.

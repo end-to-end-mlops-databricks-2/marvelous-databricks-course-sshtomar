@@ -17,6 +17,7 @@ dependencies = ["mlflow==2.17.0",
                 "databricks-feature-engineering==0.6",
                 "databricks-feature-lookup==1.2.0",
                 "databricks-sdk==0.32.0",
+                "databricks-connect==16.0.0",
                 "pydantic==2.9.2"
                 ]
 
