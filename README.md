@@ -1,5 +1,6 @@
 <h1 align="center">
-Marvelous MLOps End-to-end MLOps with Databricks course
+Marvelous MLOps End-to-end MLOps with Databricks course - Power Consumption in Tetouan City
+</h1>
 
 ## Practical information
 - Weekly lectures on Wednesdays 16:00-18:00 CET.

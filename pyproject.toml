@@ -1,7 +1,7 @@
 [project]
-name = "housing-price"
+name = "power-consumption-of-tetouan-city"
 version = "0.0.1"
-description = "Housing prices project"
+description = "Power Consumption of Tetouan City"
 requires-python = ">=3.11, <3.12"
 dependencies = ["mlflow==2.17.0",
                 "cffi==1.17.1",
@@ -17,36 +17,31 @@ dependencies = ["mlflow==2.17.0",
                 "databricks-feature-engineering==0.6",
                 "databricks-feature-lookup==1.2.0",
                 "databricks-sdk==0.32.0",
+                "databricks-connect==16.0.0",
                 "pydantic==2.9.2"
                 ]
 
 [project.optional-dependencies]
-dev = ["databricks-connect>=15.4.1, <16",
-       "ipykernel>=6.29.5, <7",
-       "pip>=24.2",
-       "pre-commit>=4.1.0, <5"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.12.0",
+    "pre-commit>=4.1.0"
+]
 
 [build-system]
-requires = [
-  "setuptools>=72.0"]
+requires = ["setuptools>=72.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where =["src"]
-include = ["house_price*"]
+include = ["power_consumption*"]
 
 [tool.ruff]
 line-length = 120
-select = [
-    "F",  # pyflakes rules
-    "E",  # pycodestyle error rules
-    "W",  # pycodestyle warning rules
-    "B",  # flake8-bugbear rules
-    "I",  # isort rules
-]
-ignore = [
-    "E501",  # line-too-long
-]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "B", "I"]
+ignore = ["E501"]
 
 [tool.ruff.format]
 indent-style = "space"

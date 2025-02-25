@@ -1,0 +1,29 @@
+catalog_name: mlops_dev
+schema_name: tomarshu
+
+numerical_features:
+  - Temperature
+  - Humidity
+  - Wind Speed
+  - general diffuse flows
+  - diffuse flows
+
+time_features:
+  - Hour
+  - DayOfWeek
+  - Month
+  - IsWeekend
+  - Hour_sin
+  - Hour_cos
+
+target_zones:
+  - Zone 1 Power Consumption
+  - Zone 2  Power Consumption
+  - Zone 3  Power Consumption
+
+parameters:
+  handle_missing: true
+  add_time_features: true
+  normalize: true
+
+data_path: "data/raw/power_consumption.csv"
